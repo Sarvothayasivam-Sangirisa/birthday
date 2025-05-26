@@ -1,137 +1,192 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Gift, Music, Lock, Unlock, Cake, Star, Heart } from 'lucide-react';
-import birthdaySong from './happy birthday.mp3';
-import imageUrl from './sa_user.png';
-const BirthdayGreeting = () => {
-  const [isUnlocked, setIsUnlocked] = useState(false);
-  const [passwordAttempts, setPasswordAttempts] = useState(0);
-  const audioRef = useRef(null);
-  const [showConfetti, setShowConfetti] = useState(false);
+import React, { useState, useRef } from "react";
 
-  const handlePasswordCheck = () => {
-    const password = prompt("Can you type my birth year for me? I’ve totally forgotten which year I was born! 😅:");
+const App = () => {
+  const [location, setLocation] = useState("");
+  const [isScanning, setIsScanning] = useState(false);
+  const [capturedImage, setCapturedImage] = useState(null);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
 
-    if (password === "2000") {
-      setIsUnlocked(true);
-      // audioRef.current.play();
-      setShowConfetti(true);
+  // Your existing location code (unchanged)
+  const getUserLocation = async () => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        return resolve("Geolocation Not Supported");
+      }
 
-      setTimeout(() => {
-        setShowConfetti(false);
-      }, 5000);
-    } else {
-      setPasswordAttempts(prev => prev + 1);
-      alert(passwordAttempts < 2
-        ? "Can you stop typing my birth year wrong and try again? I swear it's not that complicated! 😆"
-        : "Come on, dude! Type my birth year, I’m about to blow your mind with the surprise! 😆🎉");
-    }
-  };
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
 
-  const renderConfetti = () => {
-    return Array.from({ length: 100 }).map((_, index) => {
-      const colors = ['bg-pink-400', 'bg-yellow-400', 'bg-blue-400', 'bg-green-400', 'bg-purple-400'];
-      const randomColor = colors[Math.floor(Math.random() * colors.length)];
-      return (
-        <div
-          key={index}
-          className={`absolute ${randomColor} w-2 h-2 rounded-full animate-[fall_3s_ease-in-out_infinite]`}
-          style={{
-            left: `${Math.random() * 100}%`,
-            animationDelay: `${Math.random() * 2}s`,
-            top: `-10%`
-          }}
-        />
+          try {
+            const response = await fetch(
+              `https://geocode.maps.co/reverse?lat=${latitude}&lon=${longitude}`
+            );
+            const data = await response.json();
+
+            const addr = data.address || {};
+            const locationName =
+              addr.suburb ||
+              addr.neighbourhood ||
+              addr.locality ||
+              addr.quarter ||
+              addr.hamlet ||
+              addr.village ||
+              addr.town ||
+              addr.city ||
+              "Unknown";
+
+            const country = addr.country || "Unknown";
+
+            resolve(
+              `${locationName}, ${country} (Lat: ${latitude.toFixed(
+                4
+              )}, Lon: ${longitude.toFixed(4)})`
+            );
+          } catch (error) {
+            console.error("Reverse geocoding failed:", error);
+            resolve(
+              `Unknown Location (Lat: ${latitude.toFixed(
+                4
+              )}, Lon: ${longitude.toFixed(4)})`
+            );
+          }
+        },
+        (error) => {
+          console.error("Geolocation error:", error);
+          resolve("Permission Denied");
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        }
       );
     });
   };
 
-  const renderStars = () => {
-    return Array.from({ length: 50 }).map((_, index) => (
-      <div
-        key={index}
-        className="absolute bg-white/50 w-1 h-1 rounded-full animate-twinkle"
-        style={{
-          left: `${Math.random() * 100}%`,
-          top: `${Math.random() * 100}%`,
-          animationDelay: `${Math.random() * 5}s`
-        }}
-      />
-    ));
+  const handleFindLocation = async () => {
+    const loc = await getUserLocation();
+    setLocation(loc);
+  };
+
+  // Start camera for face scan
+  const startScan = async () => {
+    setCapturedImage(null);
+    setIsScanning(true);
+
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play();
+        }
+      } catch (error) {
+        console.error("Error accessing webcam:", error);
+        alert("Cannot access webcam");
+        setIsScanning(false);
+      }
+    } else {
+      alert("Webcam not supported in this browser.");
+      setIsScanning(false);
+    }
+  };
+
+  // Capture face image from video
+  const captureImage = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const dataUrl = canvas.toDataURL("image/png");
+    setCapturedImage(dataUrl);
+
+    // Stop all video streams to turn off camera
+    video.srcObject.getTracks().forEach((track) => track.stop());
+    setIsScanning(false);
   };
 
   return (
-    <div
-      className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 relative flex items-center justify-center overflow-hidden"
-    >
-      {/* Starry background effect */}
-      <div className="absolute inset-0 pointer-events-none z-10">
-        {renderStars()}
-      </div>
+    <div className="min-h-screen bg-gradient-to-r from-blue-100 to-indigo-200 flex items-center justify-center p-4">
+      <div className="bg-white shadow-xl rounded-2xl p-8 max-w-lg w-full text-center">
+        <h1 className="text-2xl font-bold mb-6 text-indigo-700">Find My Location & Face Scan</h1>
 
-      {/* Confetti effect */}
-      {showConfetti && (
-        <div className="fixed inset-0 pointer-events-none z-50">
-          {renderConfetti()}
-        </div>
-      )}
+        {/* Find Location Button */}
+        <button
+          onClick={handleFindLocation}
+          className="mb-4 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-md shadow-md transition duration-200"
+        >
+          Find Location
+        </button>
 
-      <div className="bg-white/20 backdrop-blur-lg p-8 rounded-3xl shadow-2xl max-w-md w-full transform transition-all hover:scale-105 duration-300 relative z-20 border border-white/30">
-        {!isUnlocked ? (
+        {location && (
+          <p className="mt-4 text-gray-700 text-lg bg-gray-100 p-4 rounded-md border border-gray-300">
+            {location}
+          </p>
+        )}
+
+        <hr className="my-8" />
+
+        {/* Scan Face Button */}
+        {!isScanning && !capturedImage && (
           <button
-            onClick={handlePasswordCheck}
-            className="w-full flex items-center justify-center gap-2 bg-indigo-700 text-white py-3 rounded-lg hover:bg-indigo-800 transition-colors group"
+            onClick={startScan}
+            className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-md shadow-md transition duration-200"
           >
-            <Lock className="mr-2 group-hover:animate-pulse" />
-            Click it, surprise awaits! 😜          </button>
-        ) : (
-          <div className="text-center space-y-6">
-            <h1 className="text-4xl font-bold text-white flex items-center justify-center gap-3 animate-bounce">
-              <Cake className="text-pink-400 animate-spin" />
-              Happy Cake Day
-            </h1>
+            Scan Face
+          </button>
+        )}
 
-            <div className="mx-auto w-64 h-64 overflow-hidden rounded-full shadow-2xl transform hover:scale-110 transition-transform relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-pink-500 to-purple-500 opacity-50 animate-pulse"></div>
-              <div className="absolute inset-0 flex items-center justify-center">
-                {imageUrl ? (
-                  <img
-                    src={imageUrl}
-                    alt="Heart Content"
-                    className="w-32 h-32 object-cover rounded-full"
-                  />
-                ) : (
-                  <Heart className="text-white w-32 h-32 animate-heartbeat" />
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <p className="text-xl text-white font-semibold animate-fadeIn">
-                Wishing you a day full of joy, surprises, and unforgettable moments! 🎂💖          </p>
-              <p className="text-lg text-yellow-300 font-bold animate-pulse">
-                Alright, birthday legend! 🎉✨ So, what’s the plan for my treat today? I’m all set to feast! 🎉🍕😄            </p>
-            </div>
-
-            <div className="flex justify-center space-x-4">
+        {/* Video Preview for Scanning */}
+        {isScanning && (
+          <div className="mt-6">
+            <video
+              ref={videoRef}
+              className="mx-auto rounded-lg border border-gray-400"
+              width="320"
+              height="240"
+            />
+            <div className="mt-4">
               <button
-                onClick={() => audioRef.current.play()}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700 transition-colors group"
+                onClick={captureImage}
+                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-md shadow-md transition duration-200"
               >
-                <Music className="group-hover:animate-spin" /> Play Birthday Song
-              </button>
-              <audio ref={audioRef} src={birthdaySong}></audio>
-              <button
-                onClick={() => setIsUnlocked(false)}
-                className="bg-red-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-red-700 transition-colors group"
-              >
-                <Unlock className="group-hover:animate-bounce" /> Lock
+                Capture
               </button>
             </div>
           </div>
         )}
+
+        {/* Display Captured Image */}
+        {capturedImage && (
+          <div className="mt-6">
+            <h2 className="text-xl font-semibold mb-2 text-indigo-700">Captured Face Image</h2>
+            <img
+              src={capturedImage}
+              alt="Captured face"
+              className="mx-auto rounded-lg border border-gray-400 max-w-full h-auto"
+            />
+            <button
+              onClick={() => setCapturedImage(null)}
+              className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-md shadow-md transition duration-200"
+            >
+              Retake
+            </button>
+          </div>
+        )}
+
+        <canvas ref={canvasRef} style={{ display: "none" }} />
       </div>
     </div>
   );
 };
 
-export default BirthdayGreeting;
+export default App;
